@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arkanoid — Player Guide</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        :root {
+            --bg-dark: #0a0a1a;
+            --bg-card: #12122a;
+            --bg-card-hover: #1a1a3a;
+            --border: #1e1e3e;
+            --red: #e94560;
+            --cyan: #4cc9f0;
+            --purple: #bd93f9;
+            --green: #50fa7b;
+            --orange: #f5a623;
+            --yellow: #f1fa8c;
+            --text: #e0e0f0;
+            --text-dim: #6a6a8a;
+            --glow-cyan: rgba(76, 201, 240, 0.3);
+            --glow-red: rgba(233, 69, 96, 0.3);
+            --glow-purple: rgba(189, 147, 249, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* --- Scrollbar --- */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+        /* --- Animated background --- */
+        .bg-stars {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-stars .star {
+            position: absolute;
+            width: 2px; height: 2px;
+            background: #fff;
+            border-radius: 50%;
+            animation: twinkle 3s infinite alternate;
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0.1; }
+            100% { opacity: 0.6; }
+        }
+
+        /* --- Hero Section --- */
+        .hero {
+            position: relative;
+            text-align: center;
+            padding: 80px 20px 60px;
+            background: linear-gradient(180deg, #0f0f25 0%, var(--bg-dark) 100%);
+            border-bottom: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, var(--glow-cyan), transparent 70%);
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--cyan);
+            border: 1px solid rgba(76, 201, 240, 0.3);
+            padding: 4px 16px;
+            border-radius: 20px;
+            margin-bottom: 24px;
+            animation: fadeInDown 0.8s ease;
+        }
+
+        .hero h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: clamp(42px, 8vw, 72px);
+            font-weight: 800;
+            background: linear-gradient(135deg, #ffffff 0%, var(--cyan) 50%, var(--purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+            animation: fadeInUp 0.8s ease;
+            text-shadow: none;
+            filter: drop-shadow(0 0 30px var(--glow-cyan));
+        }
+
+        .hero p {
+            font-size: 18px;
+            color: var(--text-dim);
+            max-width: 500px;
+            margin: 0 auto 32px;
+            animation: fadeInUp 1s ease;
+        }
+
+        .hero-controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            animation: fadeInUp 1.2s ease;
+        }
+
+        .hero-key {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .hero-key kbd {
+            background: #1e1e3e;
+            border: 1px solid #2a2a4a;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-family: inherit;
+            color: var(--cyan);
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- Navigation --- */
+        .nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(10, 10, 26, 0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 20px;
+            overflow-x: auto;
+        }
+
+        .nav-inner {
+            display: flex;
+            gap: 0;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .nav a {
+            display: block;
+            padding: 14px 18px;
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .nav a:hover {
+            color: var(--cyan);
+            border-bottom-color: var(--cyan);
+        }
+
+        /* --- Main Content --- */
+        .content {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px 80px;
+        }
+
+        /* --- Sections --- */
+        section {
+            margin-bottom: 64px;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--purple);
+            margin-bottom: 8px;
+        }
+
+        h2 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 28px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+
+        h2 .accent { color: var(--cyan); }
+
+        p.section-desc {
+            color: var(--text-dim);
+            font-size: 15px;
+            margin-bottom: 28px;
+            max-width: 650px;
+        }
+
+        /* --- Cards Grid --- */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(76, 201, 240, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .card h3 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .card p {
+            font-size: 14px;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+
+        /* --- Power-up Cards --- */
+        .powerup-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+        }
+
+        .powerup-card:hover {
+            border-color: rgba(76, 201, 240, 0.2);
+            transform: translateX(4px);
+        }
+
+        .powerup-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--bg-dark);
+            flex-shrink: 0;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+
+        .powerup-info h3 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .powerup-info p {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .powerup-tag {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-top: 6px;
+        }
+
+        /* --- Level Cards --- */
+        .level-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: all 0.3s;
+        }
+
+        .level-card:hover {
+            border-color: rgba(76, 201, 240, 0.2);
+            transform: translateX(4px);
+        }
+
+        .level-num {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 20px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .level-info h3 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .level-info p {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .speed-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 6px;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        /* --- Brick Legend --- */
+        .brick-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .brick-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 10px 14px;
+        }
+
+        .brick-swatch {
+            width: 36px;
+            height: 16px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .brick-item span {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .brick-item strong {
+            color: #fff;
+        }
+
+        /* --- Controls Table --- */
+        .controls-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .controls-table th {
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .controls-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(30, 30, 62, 0.5);
+            font-size: 14px;
+        }
+
+        .controls-table tr:hover td {
+            background: rgba(76, 201, 240, 0.03);
+        }
+
+        .controls-table .action {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .controls-table kbd {
+            display: inline-block;
+            background: #1e1e3e;
+            border: 1px solid #2a2a4a;
+            border-radius: 5px;
+            padding: 3px 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--cyan);
+        }
+
+        /* --- Tips --- */
+        .tip-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--cyan);
+            border-radius: 0 12px 12px 0;
+            padding: 20px 24px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+
+        .tip-card .tip-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .tip-card p {
+            font-size: 14px;
+            color: var(--text-dim);
+        }
+
+        .tip-card strong {
+            color: #fff;
+        }
+
+        /* --- Footer --- */
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            border-top: 1px solid var(--border);
+            color: var(--text-dim);
+            font-size: 13px;
+        }
+
+        .footer a {
+            color: var(--cyan);
+            text-decoration: none;
+        }
+
+        .footer .logo {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 800;
+            font-size: 18px;
+            background: linear-gradient(135deg, var(--cyan), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        /* --- Responsive --- */
+        @media (max-width: 600px) {
+            .hero { padding: 50px 16px 40px; }
+            .level-card { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .speed-badge { margin-left: 0; }
+            .nav a { padding: 12px 14px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Background stars -->
+<div class="bg-stars" id="bgStars"></div>
+
+<!-- Hero -->
+<header class="hero">
+    <div class="hero-badge">Player Guide</div>
+    <h1>ARKANOID</h1>
+    <p>Break all the bricks, survive 5 levels, and chase the high score. Classic arcade action in your browser.</p>
+    <div class="hero-controls">
+        <div class="hero-key"><kbd>← →</kbd> Move paddle</div>
+        <div class="hero-key"><kbd>ESC</kbd> Pause</div>
+        <div class="hero-key"><kbd>SPACE</kbd> Restart</div>
+    </div>
+</header>
+
+<!-- Navigation -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="#how-to-play">How to Play</a>
+        <a href="#controls">Controls</a>
+        <a href="#bricks">Bricks</a>
+        <a href="#powerups">Power-Ups</a>
+        <a href="#levels">Levels</a>
+        <a href="#tips">Tips & Tricks</a>
+    </div>
+</nav>
+
+<!-- Content -->
+<main class="content">
+
+    <!-- How to Play -->
+    <section id="how-to-play">
+        <div class="section-label">Getting Started</div>
+        <h2>How to <span class="accent">Play</span></h2>
+        <p class="section-desc">
+            Use the paddle to bounce the ball and destroy all the bricks. Don't let the ball fall below the screen!
+        </p>
+        <div class="cards">
+            <div class="card">
+                <span class="card-icon">🏓</span>
+                <h3>Move the Paddle</h3>
+                <p>Use your mouse, arrow keys, or finger (on mobile) to slide the paddle left and right along the bottom of the screen.</p>
+            </div>
+            <div class="card">
+                <span class="card-icon">🔴</span>
+                <h3>Break Bricks</h3>
+                <p>The ball bounces off the paddle, walls, and bricks. Each brick destroyed earns points. Clear all bricks to advance.</p>
+            </div>
+            <div class="card">
+                <span class="card-icon">❤️</span>
+                <h3>Don't Miss!</h3>
+                <p>You start with 3 lives. If the ball falls past your paddle, you lose a life. Lose all lives and it's game over.</p>
+            </div>
+            <div class="card">
+                <span class="card-icon">⭐</span>
+                <h3>Collect Power-Ups</h3>
+                <p>Destroyed bricks may drop power-ups. Catch them with your paddle to activate special abilities.</p>
+            </div>
+            <div class="card">
+                <span class="card-icon">🏆</span>
+                <h3>Beat All 5 Levels</h3>
+                <p>Each level has a unique brick layout and faster ball speed. Beat all five levels to win the game!</p>
+            </div>
+            <div class="card">
+                <span class="card-icon">🎯</span>
+                <h3>Aim Your Bounces</h3>
+                <p>Where the ball hits the paddle affects the bounce angle. Hit the edges for sharp angles, center for straight bounces.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Controls -->
+    <section id="controls">
+        <div class="section-label">Input</div>
+        <h2><span class="accent">Controls</span></h2>
+        <p class="section-desc">Play with mouse, keyboard, or touch — whichever feels best. The game automatically detects your input method.</p>
+
+        <div style="overflow-x: auto;">
+            <table class="controls-table">
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Desktop</th>
+                        <th>Mobile</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="action">Move Paddle</td>
+                        <td><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> or Mouse</td>
+                        <td>Drag finger</td>
+                    </tr>
+                    <tr>
+                        <td class="action">Start Game</td>
+                        <td>Click or press any key</td>
+                        <td>Tap screen</td>
+                    </tr>
+                    <tr>
+                        <td class="action">Pause / Resume</td>
+                        <td><kbd>ESC</kbd> or <kbd>P</kbd></td>
+                        <td>Tap ⏸ button</td>
+                    </tr>
+                    <tr>
+                        <td class="action">Restart</td>
+                        <td><kbd>SPACE</kbd></td>
+                        <td>Tap screen</td>
+                    </tr>
+                    <tr>
+                        <td class="action">Skip Intro</td>
+                        <td>Click anywhere</td>
+                        <td>Tap anywhere</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Bricks -->
+    <section id="bricks">
+        <div class="section-label">Scoring</div>
+        <h2>Brick <span class="accent">Types</span></h2>
+        <p class="section-desc">Six different brick colors, each worth different points. Higher value bricks appear in harder positions.</p>
+
+        <div class="brick-grid">
+            <div class="brick-item">
+                <div class="brick-swatch" style="background: linear-gradient(180deg, #d8b4fe, #bd93f9);"></div>
+                <span><strong>Purple</strong> — 60 pts</span>
+            </div>
+            <div class="brick-item">
+                <div class="brick-swatch" style="background: linear-gradient(180deg, #ff6b81, #e94560);"></div>
+                <span><strong>Red</strong> — 50 pts</span>
+            </div>
+            <div class="brick-item">
+                <div class="brick-swatch" style="background: linear-gradient(180deg, #8ce8ff, #4cc9f0);"></div>
+                <span><strong>Blue</strong> — 40 pts</span>
+            </div>
+            <div class="brick-item">
+                <div class="brick-swatch" style="background: linear-gradient(180deg, #ffd166, #f5a623);"></div>
+                <span><strong>Orange</strong> — 30 pts</span>
+            </div>
+            <div class="brick-item">
+                <div class="brick-swatch" style="background: linear-gradient(180deg, #fdffc4, #f1fa8c);"></div>
+                <span><strong>Yellow</strong> — 20 pts</span>
+            </div>
+            <div class="brick-item">
+                <div class="brick-swatch" style="background: linear-gradient(180deg, #9efcb2, #50fa7b);"></div>
+                <span><strong>Green</strong> — 10 pts</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Power-Ups -->
+    <section id="powerups">
+        <div class="section-label">Abilities</div>
+        <h2>Power-<span class="accent">Ups</span></h2>
+        <p class="section-desc">Destroyed bricks have a 25% chance to drop a power-up. Catch it with your paddle to activate. Timed effects last 8 seconds.</p>
+
+        <div class="powerup-card">
+            <div class="powerup-icon" style="background: var(--cyan);">W</div>
+            <div class="powerup-info">
+                <h3>Wide Paddle</h3>
+                <p>Expands your paddle to 1.5× its normal width. Makes it easier to catch the ball and power-ups.</p>
+                <span class="powerup-tag" style="background: rgba(76, 201, 240, 0.15); color: var(--cyan);">⏱ 8 seconds</span>
+            </div>
+        </div>
+
+        <div class="powerup-card">
+            <div class="powerup-icon" style="background: var(--green);">+</div>
+            <div class="powerup-info">
+                <h3>Extra Life</h3>
+                <p>Adds one extra life, up to a maximum of 5. Grab these whenever you can!</p>
+                <span class="powerup-tag" style="background: rgba(80, 250, 123, 0.15); color: var(--green);">⚡ Instant</span>
+            </div>
+        </div>
+
+        <div class="powerup-card">
+            <div class="powerup-icon" style="background: var(--orange);">M</div>
+            <div class="powerup-info">
+                <h3>Multi-Ball</h3>
+                <p>Spawns 2 extra balls from the main ball's position. Extra balls glow orange. They disappear when they fall off screen.</p>
+                <span class="powerup-tag" style="background: rgba(245, 166, 35, 0.15); color: var(--orange);">🔥 Until lost</span>
+            </div>
+        </div>
+
+        <div class="powerup-card">
+            <div class="powerup-icon" style="background: var(--purple);">S</div>
+            <div class="powerup-info">
+                <h3>Slow Ball</h3>
+                <p>Reduces ball speed to 60% of normal. Gives you more time to react and aim your bounces.</p>
+                <span class="powerup-tag" style="background: rgba(189, 147, 249, 0.15); color: var(--purple);">⏱ 8 seconds</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Levels -->
+    <section id="levels">
+        <div class="section-label">Progression</div>
+        <h2>The 5 <span class="accent">Levels</span></h2>
+        <p class="section-desc">Each level has a unique brick layout and faster ball speed. Your score and lives carry over between levels.</p>
+
+        <div class="level-card">
+            <div class="level-num" style="background: linear-gradient(135deg, #50fa7b, #2d8f4e); color: #fff;">1</div>
+            <div class="level-info">
+                <h3>CLASSIC</h3>
+                <p>The traditional 6-row brick wall. Learn the basics and warm up your reflexes.</p>
+            </div>
+            <span class="speed-badge" style="background: rgba(80, 250, 123, 0.15); color: var(--green);">1.0×</span>
+        </div>
+
+        <div class="level-card">
+            <div class="level-num" style="background: linear-gradient(135deg, #4cc9f0, #2a7ab5); color: #fff;">2</div>
+            <div class="level-info">
+                <h3>DIAMOND</h3>
+                <p>A diamond-shaped formation. Fewer bricks but trickier angles to hit them all.</p>
+            </div>
+            <span class="speed-badge" style="background: rgba(76, 201, 240, 0.15); color: var(--cyan);">1.1×</span>
+        </div>
+
+        <div class="level-card">
+            <div class="level-num" style="background: linear-gradient(135deg, #f5a623, #c47d0e); color: #fff;">3</div>
+            <div class="level-info">
+                <h3>FORTRESS</h3>
+                <p>A walled fortress with bricks hidden inside. Break through the outer walls to reach the core.</p>
+            </div>
+            <span class="speed-badge" style="background: rgba(245, 166, 35, 0.15); color: var(--orange);">1.2×</span>
+        </div>
+
+        <div class="level-card">
+            <div class="level-num" style="background: linear-gradient(135deg, #e94560, #a82d42); color: #fff;">4</div>
+            <div class="level-info">
+                <h3>ZIGZAG</h3>
+                <p>Diagonal stripes with gaps between them. The ball speed is getting serious now.</p>
+            </div>
+            <span class="speed-badge" style="background: rgba(233, 69, 96, 0.15); color: var(--red);">1.35×</span>
+        </div>
+
+        <div class="level-card">
+            <div class="level-num" style="background: linear-gradient(135deg, #bd93f9, #7c5bbf); color: #fff;">5</div>
+            <div class="level-info">
+                <h3>FINAL WALL</h3>
+                <p>A massive 9-row wall of mixed bricks. The ultimate challenge at maximum speed. Good luck!</p>
+            </div>
+            <span class="speed-badge" style="background: rgba(189, 147, 249, 0.15); color: var(--purple);">1.5×</span>
+        </div>
+    </section>
+
+    <!-- Tips -->
+    <section id="tips">
+        <div class="section-label">Strategy</div>
+        <h2>Tips & <span class="accent">Tricks</span></h2>
+
+        <div class="tip-card">
+            <span class="tip-icon">🎯</span>
+            <p><strong>Use the paddle edges.</strong> Hitting the ball near the edge of the paddle sends it at a sharp angle — great for reaching bricks in corners.</p>
+        </div>
+
+        <div class="tip-card">
+            <span class="tip-icon">🧲</span>
+            <p><strong>Prioritize green "+" power-ups.</strong> Extra lives are the most valuable power-up. Always try to catch them, even if it's risky.</p>
+        </div>
+
+        <div class="tip-card">
+            <span class="tip-icon">🐢</span>
+            <p><strong>Slow Ball is your friend.</strong> The purple "S" power-up makes everything easier. Use the slower speed to set up precise angle shots.</p>
+        </div>
+
+        <div class="tip-card">
+            <span class="tip-icon">🔮</span>
+            <p><strong>Multi-Ball is chaos.</strong> When you activate Multi-Ball, focus on keeping the main white ball alive. The orange extras are a bonus, not a priority.</p>
+        </div>
+
+        <div class="tip-card">
+            <span class="tip-icon">🏰</span>
+            <p><strong>On Fortress (Level 3):</strong> Focus on breaking the bottom wall first. Once you create a gap, the ball can bounce around inside and clear the core quickly.</p>
+        </div>
+
+        <div class="tip-card">
+            <span class="tip-icon">⏸️</span>
+            <p><strong>Pause when overwhelmed.</strong> Press <kbd style="background:#1e1e3e; border:1px solid #2a2a4a; border-radius:4px; padding:1px 6px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--cyan);">ESC</kbd> to pause the game, take a breath, and plan your next move.</p>
+        </div>
+
+        <div class="tip-card">
+            <span class="tip-icon">📱</span>
+            <p><strong>Mobile tip:</strong> Hold your phone in portrait mode. Keep your finger slightly below the paddle — this way you can see where you're aiming without your finger blocking the view.</p>
+        </div>
+    </section>
+
+</main>
+
+<!-- Footer -->
+<footer class="footer">
+    <div class="logo">JEKKO</div>
+    <p>Arkanoid — Built with Matter.js, Canvas API & Web Audio</p>
+    <p style="margin-top: 8px;"><a href="index.html">← Back to Game</a></p>
+</footer>
+
+<!-- Stars script -->
+<script>
+    const container = document.getElementById('bgStars');
+    for (let i = 0; i < 60; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.animationDelay = Math.random() * 3 + 's';
+        star.style.animationDuration = (2 + Math.random() * 3) + 's';
+        container.appendChild(star);
+    }
+</script>
+
+</body>
+</html>
