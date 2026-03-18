@@ -434,3 +434,61 @@ Self-contained IIFE with canvas-based cinematic animation:
 ### Total Features: 10+ major systems
 ### Total Bug Fixes: 3
 ### Development Approach: Incremental, step-by-step with user confirmation at each stage
+
+---
+
+## Future Roadmap
+
+Ideas for future sessions, organized by effort and impact.
+
+### 🟢 Quick Wins (1 session each)
+
+| Feature | Description |
+|---------|-------------|
+| **High Score Board** | Save top 10 scores to `localStorage`. Show after game over/win with initials entry. |
+| **PWA (Installable App)** | Add `manifest.json` + service worker → "Add to Home Screen" on mobile, works offline. |
+| **Volume Control** | Mute button + volume slider in pause menu. Save preference to `localStorage`. |
+| **Score Multiplier Combo** | Consecutive brick hits without paddle touch = 2×, 3×, 4× multiplier. Show combo counter on HUD. |
+| **CRT Shader Effect** | Optional retro scanline + vignette overlay for a nostalgic arcade look. Toggle on/off. |
+
+### 🟡 Medium Features (1–2 sessions each)
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-Hit Bricks** | Silver bricks (2 hits) and gold bricks (3 hits) with crack animations between hits. |
+| **New Power-Ups** | 🔫 Laser (shoot bricks from paddle), 🔥 Fireball (passes through bricks), 🧲 Magnet (catch & aim ball). |
+| **Level Editor** | Visual grid editor in the browser. Click to place/remove bricks, save as JSON, load custom levels. |
+| **Background Music** | Procedural chiptune track using Web Audio API oscillators. Different melody per level. |
+| **Brick Animations** | Entry animation (bricks slide/fade in per row), crack overlay on multi-hit, shatter on destroy. |
+| **Statistics Screen** | Track total bricks destroyed, power-ups collected, time played, accuracy. Show after each game. |
+
+### 🔴 Big Features (2+ sessions each)
+
+| Feature | Description |
+|---------|-------------|
+| **Online Leaderboard** | Firebase or Supabase backend. Global high scores with player names. |
+| **Boss Levels** | Every 5th level has a moving boss brick that shoots obstacles. Defeat it to advance. |
+| **Multiplayer (Local)** | Split-screen 2-player mode. Each player has their own paddle and bricks on half the screen. |
+| **Multiplayer (Online)** | WebSocket-based real-time versus mode. Race to clear bricks first. |
+| **Campaign Mode** | 20+ levels with a story progression, unlockable themes, and star ratings (1–3 stars per level). |
+| **Level Pack System** | Community level packs loaded from JSON files or URLs. Share custom level sets with friends. |
+
+### 🎨 Polish Ideas
+
+| Idea | Description |
+|------|-------------|
+| **Theme Selector** | Neon (current), Retro (8-bit colors + pixelated), Ocean (blue tones), Lava (red/orange). |
+| **Paddle Skins** | Unlockable paddle designs earned by reaching score milestones. |
+| **Brick Destruction Variety** | Different break effects per color — shatter, dissolve, explode, melt. |
+| **Dynamic Background** | Background changes per level — starfield, grid, aurora, rain, matrix. |
+| **Achievement System** | "First Blood", "Combo King", "No Lives Lost", "Speed Demon" badges with toast notifications. |
+| **Screenshot / Replay** | Capture game state, share as image. Or record last 10 seconds as replay. |
+
+### 📱 Platform Expansion
+
+| Platform | How |
+|----------|-----|
+| **Desktop App** | Wrap with Electron or Tauri → standalone `.exe` / `.app` |
+| **Mobile App** | Wrap with Capacitor → publish to App Store / Google Play |
+| **Discord Activity** | Package as Discord Embedded App → play inside Discord voice channels |
+| **Itch.io** | Upload HTML zip → listed on the largest indie game platform |
