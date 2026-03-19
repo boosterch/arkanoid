@@ -791,6 +791,11 @@ function normalizeBall(b) {
         vy = Math.sign(vy) * Math.cos(MIN_ANGLE);
     }
 
+    // Force velocity away from nearby walls to prevent sticking
+    if (b.position.y < BALL_RADIUS + WALL_THICKNESS + 5 && vy < 0) vy = Math.abs(vy);
+    if (b.position.x < BALL_RADIUS + WALL_THICKNESS + 5 && vx < 0) vx = Math.abs(vx);
+    if (b.position.x > GAME_WIDTH - BALL_RADIUS - WALL_THICKNESS - 5 && vx > 0) vx = -Math.abs(vx);
+
     // Normalize to target speed
     const len = Math.sqrt(vx * vx + vy * vy);
     Body.setVelocity(b, {
