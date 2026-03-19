@@ -8,6 +8,7 @@
 const { Engine, Render, Runner, Bodies, Composite, Body, Events } = Matter;
 
 // --- Game Constants ---
+const GAME_VERSION = "1.4.0";
 const GAME_WIDTH = 480;
 const GAME_HEIGHT = 640;
 
@@ -1339,6 +1340,12 @@ Events.on(render, "afterRender", () => {
             ctx.fillText("Tap or press SPACE to restart", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 125);
         }
     }
+
+    // Version number (always visible)
+    ctx.fillStyle = "rgba(100, 100, 140, 0.4)";
+    ctx.font = "10px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(`v${GAME_VERSION}`, 4, GAME_HEIGHT - 4);
 });
 
 // --- High Score Table Drawing + Entry Logic ---
