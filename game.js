@@ -141,6 +141,60 @@ const MP_ATTACK_EFFECTS = {
 };
 let mpDarknessActive = false;
 
+// --- Combo Multiplier System ---
+let comboCount = 0;
+let comboMultiplier = 1;
+let comboDisplayTimer = 0;
+const COMBO_THRESHOLDS = [3, 6, 10]; // hits needed for 2×, 3×, 4×
+
+function getComboMultiplier(hits) {
+    if (hits >= COMBO_THRESHOLDS[2]) return 4;
+    if (hits >= COMBO_THRESHOLDS[1]) return 3;
+    if (hits >= COMBO_THRESHOLDS[0]) return 2;
+    return 1;
+}
+
+function resetCombo() {
+    comboCount = 0;
+    comboMultiplier = 1;
+}
+
+// --- High Score Board (localStorage) ---
+const HIGH_SCORE_KEY = "arkanoid_highscores";
+const MAX_HIGH_SCORES = 10;
+let highScoreEntryActive = false;
+let highScoreInitials = "";
+let newHighScoreRank = -1;
+
+function getHighScores() {
+    try {
+        const data = localStorage.getItem(HIGH_SCORE_KEY);
+        return data ? JSON.parse(data) : [];
+    } catch { return []; }
+}
+
+function saveHighScore(initials, points) {
+    const scores = getHighScores();
+    scores.push({ initials: initials.toUpperCase(), score: points, date: Date.now() });
+    scores.sort((a, b) => b.score - a.score);
+    if (scores.length > MAX_HIGH_SCORES) scores.length = MAX_HIGH_SCORES;
+    localStorage.setItem(HIGH_SCORE_KEY, JSON.stringify(scores));
+    return scores;
+}
+
+function checkHighScore(points) {
+    const scores = getHighScores();
+    if (scores.length < MAX_HIGH_SCORES) return scores.length;
+    for (let i = 0; i < scores.length; i++) {
+        if (points > scores[i].score) return i;
+    }
+    return -1;
+}
+
+function playComboSound(mult) {
+    playSound(440 * mult, 0.12, "square");
+}
+
 // Power-up settings
 const POWERUP_DROP_CHANCE = 0.25; // 25% chance per brick
 const POWERUP_SIZE = 16;
@@ -190,8 +244,8 @@ function drawStarfield(ctx) {
 // --- Floating Score Popups ---
 const scorePopups = [];
 
-function spawnScorePopup(x, y, points, color) {
-    scorePopups.push({ x, y, text: `+${points}`, color, life: 1.0, vy: -1.5 });
+function spawnScorePopup(x, y, text, color) {
+    scorePopups.push({ x, y, text: typeof text === "number" ? `+${text}` : text, color, life: 1.0, vy: -1.5 });
 }
 
 function updateScorePopups() {
@@ -791,6 +845,7 @@ Events.on(engine, "beforeUpdate", () => {
             gameOver = true;
             Body.setVelocity(ball, { x: 0, y: 0 });
             playGameOverSound();
+            triggerHighScoreCheck();
             if (typeof MP !== "undefined" && MP.active) {
                 MP.sendLost();
                 MP.resetCombo();
@@ -798,6 +853,7 @@ Events.on(engine, "beforeUpdate", () => {
         } else {
             playLoseLifeSound();
             resetBall();
+            resetCombo();
             if (typeof MP !== "undefined" && MP.active) MP.resetCombo();
         }
     }
@@ -844,6 +900,7 @@ Events.on(engine, "collisionStart", (event) => {
             playPaddleSound();
             spawnParticles(hitBall.position.x, hitBall.position.y, "#4cc9f0", 8);
             triggerShake(1.5);
+            resetCombo();
         }
 
         // -- Wall bounce --
@@ -855,16 +912,28 @@ Events.on(engine, "collisionStart", (event) => {
         if (labels.includes("ball") && labels.includes("brick")) {
             const brick = pair.bodyA.label === "brick" ? pair.bodyA : pair.bodyB;
 
-            // Add score based on brick type
-            score += brick.brickPoints || 10;
+            // Combo tracking
+            comboCount++;
+            const prevMult = comboMultiplier;
+            comboMultiplier = getComboMultiplier(comboCount);
+            if (comboMultiplier > prevMult) playComboSound(comboMultiplier);
+            comboDisplayTimer = 90;
+
+            // Add score with combo multiplier
+            const basePoints = brick.brickPoints || 10;
+            const earnedPoints = basePoints * comboMultiplier;
+            score += earnedPoints;
 
             // Particles burst in brick color
             const def = BRICK_DEFS[brick.brickColor];
             const color = def ? def.color : "#ffffff";
             spawnParticles(brick.position.x, brick.position.y, color, 14);
 
-            // Floating score popup
-            spawnScorePopup(brick.position.x, brick.position.y - 10, brick.brickPoints || 10, color);
+            // Floating score popup (show multiplier if active)
+            const popupText = comboMultiplier > 1
+                ? `+${earnedPoints} (${comboMultiplier}×)`
+                : `+${earnedPoints}`;
+            spawnScorePopup(brick.position.x, brick.position.y - 10, popupText, comboMultiplier > 1 ? "#f1fa8c" : color);
 
             // Screen shake
             triggerShake(3);
@@ -903,6 +972,7 @@ Events.on(engine, "collisionStart", (event) => {
                     gameWon = true;
                     Body.setVelocity(ball, { x: 0, y: 0 });
                     playWinSound();
+                    triggerHighScoreCheck();
                     if (typeof MP !== "undefined" && MP.active) MP.sendWon();
                 }
             }
@@ -1088,6 +1158,24 @@ Events.on(render, "afterRender", () => {
         ctx.fillText(`[M]x${extraBalls.length}`, indicatorX, indicatorY);
     }
 
+    // Combo multiplier display
+    if (comboDisplayTimer > 0 && comboMultiplier > 1) {
+        comboDisplayTimer--;
+        const comboAlpha = Math.min(1, comboDisplayTimer / 20);
+        const comboColors = ["#fff", "#f1fa8c", "#f5a623", "#e94560"];
+        const comboColor = comboColors[Math.min(comboMultiplier - 1, comboColors.length - 1)];
+
+        ctx.save();
+        ctx.globalAlpha = comboAlpha;
+        ctx.shadowColor = comboColor;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = comboColor;
+        ctx.font = "bold 18px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(`${comboMultiplier}× COMBO! (${comboCount} hits)`, GAME_WIDTH / 2, GAME_HEIGHT - 70);
+        ctx.restore();
+    }
+
     // -- Multiplayer: opponent HUD + attack messages --
     if (typeof MP !== "undefined" && MP.active) {
         drawOpponentHUD(ctx);
@@ -1184,12 +1272,31 @@ Events.on(render, "afterRender", () => {
         ctx.fillStyle = "#e94560";
         ctx.font = "bold 40px monospace";
         ctx.textAlign = "center";
-        ctx.fillText("GAME OVER", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30);
+        ctx.fillText("GAME OVER", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 90);
 
         ctx.fillStyle = "#ffffff";
         ctx.font = "20px monospace";
-        ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 10);
-        ctx.fillText("Tap or press SPACE to restart", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50);
+        ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 55);
+
+        if (highScoreEntryActive) {
+            ctx.fillStyle = "#f1fa8c";
+            ctx.font = "16px monospace";
+            ctx.fillText("NEW HIGH SCORE! Enter initials:", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 36px monospace";
+            const display = (highScoreInitials + "___").slice(0, 3);
+            ctx.fillText(display, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 18);
+
+            ctx.fillStyle = "#8892b0";
+            ctx.font = "13px monospace";
+            ctx.fillText("Type 3 letters, then ENTER", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 45);
+        } else {
+            drawHighScoreTable(ctx, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "16px monospace";
+            ctx.fillText("Tap or press SPACE to restart", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 115);
+        }
     }
 
     // Win overlay
@@ -1200,15 +1307,73 @@ Events.on(render, "afterRender", () => {
         ctx.fillStyle = "#50fa7b";
         ctx.font = "bold 40px monospace";
         ctx.textAlign = "center";
-        ctx.fillText("YOU WIN!", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40);
+        ctx.fillText("YOU WIN!", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100);
 
         ctx.fillStyle = "#ffffff";
         ctx.font = "20px monospace";
-        ctx.fillText(`All ${LEVELS.length} levels cleared!`, GAME_WIDTH / 2, GAME_HEIGHT / 2);
-        ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 30);
-        ctx.fillText("Tap or press SPACE to restart", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 65);
+        ctx.fillText(`All ${LEVELS.length} levels cleared!`, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 70);
+        ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 45);
+
+        if (highScoreEntryActive) {
+            ctx.fillStyle = "#f1fa8c";
+            ctx.font = "16px monospace";
+            ctx.fillText("NEW HIGH SCORE! Enter initials:", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 10);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 36px monospace";
+            const display = (highScoreInitials + "___").slice(0, 3);
+            ctx.fillText(display, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 28);
+
+            ctx.fillStyle = "#8892b0";
+            ctx.font = "13px monospace";
+            ctx.fillText("Type 3 letters, then ENTER", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 55);
+        } else {
+            drawHighScoreTable(ctx, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 10);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "16px monospace";
+            ctx.fillText("Tap or press SPACE to restart", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 125);
+        }
     }
 });
+
+// --- High Score Table Drawing + Entry Logic ---
+function triggerHighScoreCheck() {
+    newHighScoreRank = checkHighScore(score);
+    if (newHighScoreRank >= 0 && score > 0) {
+        highScoreEntryActive = true;
+        highScoreInitials = "";
+    }
+}
+
+function drawHighScoreTable(ctx, cx, startY) {
+    const scores = getHighScores();
+    ctx.fillStyle = "#4cc9f0";
+    ctx.font = "bold 14px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("\u2014 HIGH SCORES \u2014", cx, startY);
+
+    if (scores.length === 0) {
+        ctx.fillStyle = "#556";
+        ctx.font = "13px monospace";
+        ctx.fillText("No scores yet", cx, startY + 22);
+        return;
+    }
+
+    for (let i = 0; i < Math.min(scores.length, 5); i++) {
+        const s = scores[i];
+        const y = startY + 20 + i * 20;
+        const isNew = (newHighScoreRank === i && !highScoreEntryActive);
+
+        ctx.fillStyle = isNew ? "#f1fa8c" : (i === 0 ? "#f5a623" : "#8892b0");
+        ctx.font = isNew ? "bold 13px monospace" : "13px monospace";
+        ctx.textAlign = "center";
+
+        const rank = `${i + 1}.`;
+        const initials = s.initials || "---";
+        const pts = s.score.toLocaleString();
+        ctx.fillText(`${rank} ${initials}  ${pts}`, cx, y);
+    }
+}
 
 // --- Level Advance ---
 function advanceLevel() {
@@ -1264,6 +1429,10 @@ function restartGame() {
     mpDarknessActive = false;
     mpAttackMessage = null;
     mpAttackMessageTimer = 0;
+    resetCombo();
+    highScoreEntryActive = false;
+    highScoreInitials = "";
+    newHighScoreRank = -1;
 
     // Remove remaining bricks
     for (const brick of bricks) {
@@ -1322,6 +1491,24 @@ function startGame() {
 canvas.addEventListener("click", startGame);
 
 document.addEventListener("keydown", (e) => {
+    // High score initials entry
+    if (highScoreEntryActive && (gameOver || gameWon)) {
+        if (e.code === "Backspace") {
+            highScoreInitials = highScoreInitials.slice(0, -1);
+            return;
+        }
+        if (e.code === "Enter" && highScoreInitials.length === 3) {
+            saveHighScore(highScoreInitials, score);
+            highScoreEntryActive = false;
+            return;
+        }
+        if (/^[a-zA-Z]$/.test(e.key) && highScoreInitials.length < 3) {
+            highScoreInitials += e.key.toUpperCase();
+            return;
+        }
+        return; // Block all other keys during entry
+    }
+
     // Toggle pause
     if ((e.code === "Escape" || e.code === "KeyP") && gameStarted && !gameOver && !gameWon && !levelComplete) {
         if (gamePaused) {
