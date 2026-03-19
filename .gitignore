@@ -2,3 +2,4 @@
 *.slnx
 *.pdf
 .vs/
+server/node_modules/

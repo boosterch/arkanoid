@@ -131,6 +131,16 @@ let levelTransitionTimer = null;
 let gamePaused = false;
 let savedVelocities = null;
 
+// --- Multiplayer State ---
+let mpAttackMessage = null;
+let mpAttackMessageTimer = 0;
+const MP_ATTACK_EFFECTS = {
+    speed: { label: "⚡ SPEED UP!", color: "#e94560", duration: 6000 },
+    shrink: { label: "📏 SHRINK!", color: "#f5a623", duration: 6000 },
+    dark: { label: "🌑 DARKNESS!", color: "#bd93f9", duration: 5000 }
+};
+let mpDarknessActive = false;
+
 // Power-up settings
 const POWERUP_DROP_CHANCE = 0.25; // 25% chance per brick
 const POWERUP_SIZE = 16;
@@ -737,6 +747,12 @@ function normalizeBall(b) {
 
 // --- Game Loop: Keep ball speed constant + move paddle + check bounds ---
 Events.on(engine, "beforeUpdate", () => {
+    // Multiplayer: auto-start when server sends "go"
+    if (typeof MP !== "undefined" && MP.gameGo && !gameStarted) {
+        MP.gameGo = false;
+        startGame();
+    }
+
     if (!gameStarted || gameOver || gameWon || levelComplete || gamePaused) return;
 
     // -- Move paddle --
@@ -775,9 +791,14 @@ Events.on(engine, "beforeUpdate", () => {
             gameOver = true;
             Body.setVelocity(ball, { x: 0, y: 0 });
             playGameOverSound();
+            if (typeof MP !== "undefined" && MP.active) {
+                MP.sendLost();
+                MP.resetCombo();
+            }
         } else {
             playLoseLifeSound();
             resetBall();
+            if (typeof MP !== "undefined" && MP.active) MP.resetCombo();
         }
     }
 
@@ -787,6 +808,19 @@ Events.on(engine, "beforeUpdate", () => {
     updatePowerups();
     cleanupExtraBalls();
     updateScorePopups();
+
+    // -- Multiplayer: process incoming attacks --
+    if (typeof MP !== "undefined" && MP.active) {
+        const attack = MP.popAttack();
+        if (attack && MP_ATTACK_EFFECTS[attack]) {
+            applyMPAttack(attack);
+        }
+        // Send state every 10 frames
+        if (engine.timing.timestamp % 10 < 1) {
+            const totalBricks = LEVELS[currentLevel].grid.reduce((sum, row) => sum + [...row].filter(c => c !== ".").length, 0);
+            MP.sendState(score, lives, bricks.length, currentLevel, totalBricks);
+        }
+    }
 });
 
 // --- Collisions: paddle bounce + brick destruction + scoring + sounds ---
@@ -837,6 +871,15 @@ Events.on(engine, "collisionStart", (event) => {
 
             playBrickSound();
 
+            // Multiplayer: track combo, maybe send attack
+            if (typeof MP !== "undefined" && MP.active) {
+                const sentAttack = MP.onBrickDestroyed();
+                if (sentAttack) {
+                    mpAttackMessage = "⚔ ATTACK SENT!";
+                    mpAttackMessageTimer = 90;
+                }
+            }
+
             // Maybe spawn a power-up
             spawnPowerup(brick.position.x, brick.position.y);
 
@@ -860,6 +903,7 @@ Events.on(engine, "collisionStart", (event) => {
                     gameWon = true;
                     Body.setVelocity(ball, { x: 0, y: 0 });
                     playWinSound();
+                    if (typeof MP !== "undefined" && MP.active) MP.sendWon();
                 }
             }
         }
@@ -1044,6 +1088,28 @@ Events.on(render, "afterRender", () => {
         ctx.fillText(`[M]x${extraBalls.length}`, indicatorX, indicatorY);
     }
 
+    // -- Multiplayer: opponent HUD + attack messages --
+    if (typeof MP !== "undefined" && MP.active) {
+        drawOpponentHUD(ctx);
+        drawAttackMessage(ctx);
+        if (mpDarknessActive) {
+            drawDarknessOverlay(ctx);
+        }
+        // Show MP result overlay
+        if (MP.resultMessage && !gameOver && !gameWon) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            ctx.fillStyle = "#50fa7b";
+            ctx.font = "bold 28px monospace";
+            ctx.textAlign = "center";
+            ctx.fillText(MP.resultMessage, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 10);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "16px monospace";
+            ctx.fillText(`Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 25);
+            ctx.fillText("Tap or press SPACE to exit", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 55);
+        }
+    }
+
     // Start screen
     if (!gameStarted && !levelComplete) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
@@ -1054,14 +1120,25 @@ Events.on(render, "afterRender", () => {
         ctx.textAlign = "center";
         ctx.fillText("ARKANOID", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50);
 
-        ctx.fillStyle = "#f1fa8c";
-        ctx.font = "bold 20px monospace";
-        ctx.fillText(`Level ${currentLevel + 1}: ${LEVELS[currentLevel].name}`, GAME_WIDTH / 2, GAME_HEIGHT / 2);
+        // Multiplayer countdown
+        if (typeof MP !== "undefined" && MP.countdown !== null) {
+            ctx.fillStyle = "#f1fa8c";
+            ctx.font = "bold 64px monospace";
+            ctx.fillText(MP.countdown === 0 ? "GO!" : MP.countdown, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 20);
 
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "18px monospace";
-        ctx.fillText("Tap, click, or press any key", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 35);
-        ctx.fillText("to start", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 58);
+            ctx.fillStyle = "#e94560";
+            ctx.font = "bold 14px monospace";
+            ctx.fillText(`Room: ${MP.roomCode}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 55);
+        } else {
+            ctx.fillStyle = "#f1fa8c";
+            ctx.font = "bold 20px monospace";
+            ctx.fillText(`Level ${currentLevel + 1}: ${LEVELS[currentLevel].name}`, GAME_WIDTH / 2, GAME_HEIGHT / 2);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "18px monospace";
+            ctx.fillText("Tap, click, or press any key", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 35);
+            ctx.fillText("to start", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 58);
+        }
     }
 
     // Level Complete overlay
@@ -1157,8 +1234,13 @@ function advanceLevel() {
     // Reset ball
     resetBall();
 
-    // Wait for user click/key to launch
-    gameStarted = false;
+    // In multiplayer, auto-start next level; in solo, wait for user
+    if (typeof MP !== "undefined" && MP.active) {
+        gameStarted = true;
+        setTimeout(launchBall, 600);
+    } else {
+        gameStarted = false;
+    }
 }
 
 // --- Restart game on SPACE ---
@@ -1179,6 +1261,9 @@ function restartGame() {
     particles.length = 0;
     trail.length = 0;
     scorePopups.length = 0;
+    mpDarknessActive = false;
+    mpAttackMessage = null;
+    mpAttackMessageTimer = 0;
 
     // Remove remaining bricks
     for (const brick of bricks) {
@@ -1226,8 +1311,10 @@ function resumeGame() {
 
 function startGame() {
     if (!gameStarted) {
+        // In multiplayer, only start when server says "go"
+        if (typeof MP !== "undefined" && MP.connected && !MP.gameGo) return;
         gameStarted = true;
-        getAudioCtx(); // warm up audio on user gesture
+        getAudioCtx();
         launchBall();
     }
 }
@@ -1249,9 +1336,160 @@ document.addEventListener("keydown", (e) => {
         return;
     }
     if (e.code === "Space" && (gameOver || gameWon)) {
+        if (typeof MP !== "undefined" && MP.active) {
+            MP.disconnect();
+        }
+        restartGame();
+    }
+    // Also exit on SPACE when MP result is showing
+    if (e.code === "Space" && typeof MP !== "undefined" && MP.resultMessage) {
+        MP.disconnect();
         restartGame();
     }
 });
+
+// --- Multiplayer: attack effects + opponent HUD ---
+function applyMPAttack(attackType) {
+    const effect = MP_ATTACK_EFFECTS[attackType];
+    if (!effect) return;
+    mpAttackMessage = effect.label;
+    mpAttackMessageTimer = 120;
+    triggerShake(5);
+    playSound(180, 0.3, "sawtooth");
+
+    switch (attackType) {
+        case "speed":
+            currentBallSpeed = getLevelSpeed() * 1.5;
+            setTimeout(() => { currentBallSpeed = getLevelSpeed(); }, effect.duration);
+            break;
+        case "shrink":
+            currentPaddleWidth = PADDLE_WIDTH * 0.6;
+            resizePaddle(currentPaddleWidth);
+            setTimeout(() => {
+                currentPaddleWidth = PADDLE_WIDTH;
+                resizePaddle(currentPaddleWidth);
+            }, effect.duration);
+            break;
+        case "dark":
+            mpDarknessActive = true;
+            setTimeout(() => { mpDarknessActive = false; }, effect.duration);
+            break;
+    }
+}
+
+function drawOpponentHUD(ctx) {
+    const op = MP.opponentState;
+    if (!op) return;
+
+    // Opponent panel — right side
+    const panelX = GAME_WIDTH - 145;
+    const panelY = 44;
+    const panelW = 138;
+    const panelH = 68;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, 6);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(233, 69, 96, 0.4)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = "#e94560";
+    ctx.font = "bold 10px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("OPPONENT", panelX + 8, panelY + 14);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "11px monospace";
+    ctx.fillText(`Score: ${op.score}`, panelX + 8, panelY + 30);
+    ctx.fillText(`Lives: ${"❤".repeat(op.lives)}`, panelX + 8, panelY + 44);
+
+    // Brick progress bar
+    const barX = panelX + 8;
+    const barY = panelY + 52;
+    const barW = panelW - 16;
+    const barH = 6;
+    const progress = op.totalBricks > 0 ? 1 - (op.bricksLeft / op.totalBricks) : 0;
+
+    ctx.fillStyle = "#1e1e3e";
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = "#e94560";
+    ctx.fillRect(barX, barY, barW * progress, barH);
+}
+
+function drawAttackMessage(ctx) {
+    if (mpAttackMessageTimer <= 0 || !mpAttackMessage) return;
+    mpAttackMessageTimer--;
+
+    const alpha = Math.min(1, mpAttackMessageTimer / 30);
+    const y = GAME_HEIGHT / 2 - 100 + (1 - alpha) * -20;
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#e94560";
+    ctx.font = "bold 22px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(mpAttackMessage, GAME_WIDTH / 2, y);
+    ctx.globalAlpha = 1;
+}
+
+function drawDarknessOverlay(ctx) {
+    // Radial hole around ball, rest is dark
+    const grad = ctx.createRadialGradient(
+        ball.position.x, ball.position.y, 30,
+        ball.position.x, ball.position.y, 150
+    );
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,0.85)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+}
+
+// --- Multiplayer: lobby UI wiring ---
+const mpModeBtn = document.getElementById("mpModeBtn");
+const mpCreateBtn = document.getElementById("mpCreateBtn");
+const mpJoinBtn = document.getElementById("mpJoinBtn");
+const mpReadyBtn = document.getElementById("mpReadyBtn");
+const mpBackBtn = document.getElementById("mpBackBtn");
+const mpCodeInput = document.getElementById("mpCodeInput");
+
+if (mpModeBtn) {
+    mpModeBtn.addEventListener("click", async () => {
+        const serverUrl = prompt(
+            "Enter server WebSocket URL:\n(e.g. ws://localhost:3000 or wss://your-server.com)",
+            "ws://localhost:3000"
+        );
+        if (!serverUrl) return;
+        try {
+            await MP.connect(serverUrl);
+            MP.showLobby();
+        } catch {
+            alert("Could not connect to server. Make sure it's running.");
+        }
+    });
+}
+
+if (mpCreateBtn) {
+    mpCreateBtn.addEventListener("click", () => MP.createRoom());
+}
+
+if (mpJoinBtn) {
+    mpJoinBtn.addEventListener("click", () => {
+        const code = mpCodeInput.value.trim();
+        if (code.length === 4) MP.joinRoom(code);
+    });
+}
+
+if (mpReadyBtn) {
+    mpReadyBtn.addEventListener("click", () => MP.setReady());
+}
+
+if (mpBackBtn) {
+    mpBackBtn.addEventListener("click", () => {
+        MP.disconnect();
+        MP.hideLobby();
+    });
+}
 
 // --- Start the engine and renderer ---
 Render.run(render);
