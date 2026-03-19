@@ -749,8 +749,8 @@ function normalizeBall(b) {
 Events.on(engine, "beforeUpdate", () => {
     // Multiplayer: auto-start when server sends "go"
     if (typeof MP !== "undefined" && MP.gameGo && !gameStarted) {
-        MP.gameGo = false;
         startGame();
+        MP.gameGo = false;
     }
 
     if (!gameStarted || gameOver || gameWon || levelComplete || gamePaused) return;
